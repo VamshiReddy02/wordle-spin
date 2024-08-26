@@ -28,7 +28,7 @@ export async function handler(req: Request, res: ResponseBuilder) {
   let body: string | undefined;
 
   try {
-    if (req.method === "POST" && req.url.toLowerCase().includes("/api/start")) {
+    if (req.method === "POST" && req.url.toLowerCase().includes("/api/play")) {
       const id = uuidv4();
       const solution = dictionary[Math.floor(Math.random() * dictionary.length)];
 
@@ -41,90 +41,55 @@ export async function handler(req: Request, res: ResponseBuilder) {
       };
 
       await store.set(id, JSON.stringify(internalGame));
-      response.gameId = internalGame.id;
-      response.grid = internalGame.grid;
-      response.currentRow = internalGame.currentRow;
-      response.solved = internalGame.solved;
-      response.message = "The game has started, start guessing the word";
 
-      body = JSON.stringify(response);
-      res.headers.set("content-type", "application/json");
-      res.status(status).send(body);
-      return;
-    }
-
-    if (req.method === "GET" && req.url.toLowerCase().includes("/api/guess")) {
-      const url = new URL(req.url, `http://${req.headers.get("host")}`);
-      const id = url.searchParams.get("gameId");
-      const guess = url.searchParams.get("guess");
-
-      if (!id || !guess) {
-        status = 400;
-        response.message = "Missing gameId or guess in the query parameters";
-        body = JSON.stringify(response);
-        res.headers.set("content-type", "application/json");
-        res.status(status).send(body);
-        return;
-      }
-
-      const val = store.get(id);
-      if (!val) {
-        status = 404;
-        response.message = `Game with id: ${id} not found`;
-        body = JSON.stringify(response);
-        res.headers.set("content-type", "application/json");
-        res.status(status).send(body);
-        return;
-      }
-
-      const internalGame: InternalGame = JSON.parse(decoder.decode(val));
-
-      if (guess.length !== 5 || !/^[a-zA-Z]+$/.test(guess)) {
-        status = 400;
-        response.message = "Guess must be a 5-letter word.";
-        body = JSON.stringify(response);
-        res.headers.set("content-type", "application/json");
-        res.status(status).send(body);
-        return;
-      }
-
-      const normalizedGuess = guess.toLowerCase();
-
-      if (!dictionary.includes(normalizedGuess)) {
-        status = 400;
-        response.message = "Not a valid word.";
-        body = JSON.stringify(response);
-        res.headers.set("content-type", "application/json");
-        res.status(status).send(body);
-        return;
-      }
-
-      internalGame.grid[internalGame.currentRow] = normalizedGuess.split("");
-
-      const correctLetters = Array(5).fill("_");
-      for (let i = 0; i < normalizedGuess.length; i++) {
-        if (normalizedGuess[i] === internalGame.solution[i]) {
-          correctLetters[i] = normalizedGuess[i];
-        }
-      }
-
-      if (normalizedGuess === internalGame.solution) {
-        internalGame.solved = true;
-        response.message = "Congratulations!";
-      } else if (internalGame.currentRow === 5) {
-        response.message = `Game over. The word was ${internalGame.solution}.`;
+      const { guess } = await req.json();
+      if (!guess) {
+        response.gameId = internalGame.id;
+        response.grid = internalGame.grid;
+        response.currentRow = internalGame.currentRow;
+        response.solved = internalGame.solved;
+        response.message = "The game has started, start guessing the word";
       } else {
-        response.message = `Keep trying! Correct letters: ${correctLetters.filter(l => l !== "_").join(", ")}`;
-        internalGame.currentRow++;
+        if (guess.length !== 5 || !/^[a-zA-Z]+$/.test(guess)) {
+          status = 400;
+          response.message = "Guess must be a 5-letter word.";
+        } else {
+          const normalizedGuess = guess.toLowerCase();
+
+          if (!dictionary.includes(normalizedGuess)) {
+            status = 400;
+            response.message = "Not a valid word.";
+          } else {
+            internalGame.grid[internalGame.currentRow] = normalizedGuess.split("");
+
+            const correctLetters = Array(5).fill("_");
+            for (let i = 0; i < normalizedGuess.length; i++) {
+              if (normalizedGuess[i] === internalGame.solution[i]) {
+                correctLetters[i] = normalizedGuess[i];
+              }
+            }
+
+            if (normalizedGuess === internalGame.solution) {
+              internalGame.solved = true;
+              response.message = "Congratulations!";
+            } else if (internalGame.currentRow === 5) {
+              response.message = `Game over. The word was ${internalGame.solution}.`;
+            } else {
+              response.message = `Keep trying! Correct letters: ${correctLetters.filter(l => l !== "_").join(", ")}`;
+              internalGame.currentRow++;
+            }
+
+            await store.set(internalGame.id, JSON.stringify(internalGame));
+
+            response.correctLetters = correctLetters;
+            response.solved = internalGame.solved;
+          }
+        }
+
+        response.gameId = internalGame.id;
+        response.grid = internalGame.grid;
+        response.currentRow = internalGame.currentRow;
       }
-
-      await store.set(internalGame.id, JSON.stringify(internalGame));
-
-      response.gameId = internalGame.id;
-      response.grid = internalGame.grid;
-      response.currentRow = internalGame.currentRow;
-      response.solved = internalGame.solved;
-      response.correctLetters = correctLetters;
 
       body = JSON.stringify(response);
       res.headers.set("content-type", "application/json");

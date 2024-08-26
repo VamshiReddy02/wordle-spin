@@ -7,17 +7,14 @@ name = "wordle-spin"
 version = "0.1.0"
 
 [[trigger.http]]
-route = "/api/start"
-component = "wordle-spin"
-
-[[trigger.http]]
-route = "/api/guess"
+route = "/api/play"
 component = "wordle-spin"
 
 [component.wordle-spin]
 source = "target/wordle-spin.wasm"
 exclude_files = ["**/node_modules"]
 key_value_stores = ["default"]
+
 [component.wordle-spin.build]
 command = "npm run build"
 watch = ["src/**/*.ts", "package.json"]
