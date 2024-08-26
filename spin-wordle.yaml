@@ -1,0 +1,8 @@
+apiVersion: core.spinoperator.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: wordle-spin
+spec:
+  image: "vamshireddy02/wordle-spin:v0.1.0"
+  executor: containerd-shim-spin
+  replicas: 2
